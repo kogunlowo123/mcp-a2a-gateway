@@ -1,0 +1,50 @@
+# Authorization policy published by agent-identity-fabric v0.1.0
+# (policies/agent-authorization.yaml in that repository), used by the interop tests.
+# Authorization policy evaluated by POST /v1/authorize.
+# Combining: deny overrides, then require_approval, then allow; default deny.
+# Subject attributes come from the verified credential: status, scopes, risk,
+# max_classification, delegation_depth, delegated, and action_in_scope (true
+# when the requested action matches a credential scope; scopes may end in a
+# wildcard segment such as fhir:read:*).
+# risk: 1=LOW 2=MODERATE 3=HIGH 4=CRITICAL
+# classification: 0=PUBLIC 1=INTERNAL 2=CONFIDENTIAL 3=RESTRICTED
+name: agent-authorization
+version: "2026.10.0"
+rules:
+  - id: deny-deep-delegation-on-restricted
+    description: Restricted data may be reached through at most one delegation hop.
+    effect: deny
+    actions: ["*"]
+    conditions:
+      - {attribute: resource.classification, operator: gte, value: 3}
+      - {attribute: subject.delegation_depth, operator: gt, value: 1}
+
+  - id: deny-restricted-without-purpose
+    description: Restricted data requires a declared purpose of use.
+    effect: deny
+    actions: ["*"]
+    conditions:
+      - {attribute: resource.classification, operator: gte, value: 3}
+      - {attribute: environment.purpose_of_use, operator: exists, value: false}
+
+  - id: approve-critical-risk-agents
+    description: Any action by a critical-risk agent needs human approval.
+    effect: require_approval
+    actions: ["*"]
+    conditions:
+      - {attribute: subject.risk, operator: gte, value: 4}
+
+  - id: approve-delegated-writes
+    description: Writes performed under delegation need human approval.
+    effect: require_approval
+    actions: ["*:write", "*:write:*", "*:delete", "*:delete:*", "*:execute", "*:execute:*"]
+    conditions:
+      - {attribute: subject.delegated, operator: eq, value: true}
+
+  - id: allow-scoped-actions
+    description: An action is allowed when the credential carries it as a scope.
+    effect: allow
+    actions: ["*"]
+    conditions:
+      - {attribute: subject.status, operator: eq, value: active}
+      - {attribute: subject.action_in_scope, operator: eq, value: true}

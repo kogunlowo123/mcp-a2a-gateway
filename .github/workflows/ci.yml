@@ -1,0 +1,168 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --python ${{ matrix.python }}
+      - name: Lint and format
+        run: |
+          uv run ruff check src tests
+          uv run black --check src tests
+      - name: Type check
+        run: uv run mypy
+      - name: Static security analysis
+        run: uv run python -m bandit -q -r src -c pyproject.toml
+      - name: Published contracts are current
+        run: uv run python -m mcp_a2a_gateway.contracts --check
+      - name: Unit, security, chaos, performance and e2e tests (coverage gate 90%)
+        run: uv run pytest --cov-report=xml
+      - uses: actions/upload-artifact@v4
+        if: matrix.python == '3.12'
+        with:
+          name: coverage
+          path: coverage.xml
+
+  integration-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_DB: gateway
+          POSTGRES_USER: gateway
+          POSTGRES_PASSWORD: ci-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gateway" --health-interval 5s --health-retries 10
+    env:
+      GATEWAY_TEST_DATABASE_URL: postgresql+asyncpg://gateway:ci-only@localhost:5432/gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --frozen
+      - name: PostgreSQL repository, approval and audit-chain tests
+        run: uv run pytest tests/integration -m integration --no-cov -ra
+      - name: Full service scenarios on PostgreSQL
+        run: uv run pytest tests/unit/test_mcp_gateway.py tests/unit/test_a2a.py tests/security --no-cov -q
+
+  deploy-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+      - name: Helm lint and render
+        run: |
+          helm lint deployments/helm/mcp-a2a-gateway \
+            -f deployments/helm/mcp-a2a-gateway/ci/test-values.yaml
+          helm template gateway deployments/helm/mcp-a2a-gateway \
+            -f deployments/helm/mcp-a2a-gateway/ci/test-values.yaml > rendered.yaml
+          if helm template gateway deployments/helm/mcp-a2a-gateway > /dev/null 2>&1; then
+            echo "chart rendered without required values"; exit 1
+          fi
+      - name: Kubernetes schema validation (kubeconform)
+        run: |
+          curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz
+          ./kubeconform -strict -summary -ignore-missing-schemas \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            rendered.yaml deployments/kubernetes/namespace.yaml deployments/kubernetes/external-secrets.yaml
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: Terraform fmt and validate (aws, azure, gcp)
+        run: |
+          terraform fmt -recursive -check deployments/terraform
+          for cloud in aws azure gcp; do
+            terraform -chdir=deployments/terraform/$cloud init -backend=false -input=false
+            terraform -chdir=deployments/terraform/$cloud validate
+          done
+      - name: IaC and Kubernetes misconfiguration scan (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: deployments
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t mcp-a2a-gateway:ci .
+      - name: Container smoke test (starts, serves card, refuses anonymous MCP)
+        run: |
+          docker run -d --name gateway -p 8080:8080 \
+            -e GATEWAY_ENVIRONMENT=ci -e GATEWAY_DEV_EPHEMERAL_KEYS=true \
+            -e GATEWAY_PUBLIC_URL=http://localhost:8080 \
+            -e GATEWAY_TRUST_DOMAIN=agents.ci.internal \
+            -e GATEWAY_DATABASE_URL=sqlite+aiosqlite:////tmp/gateway.db \
+            -e GATEWAY_TOKEN_ISSUER=https://identity.agents.ci.internal \
+            -e GATEWAY_TOKEN_JWKS_URL=https://identity.agents.ci.internal/.well-known/jwks.json \
+            -e GATEWAY_ADMIN_ISSUER=https://login.ci.internal -e GATEWAY_ADMIN_AUDIENCE=gateway \
+            -e GATEWAY_ADMIN_JWKS_URL=https://login.ci.internal/jwks \
+            -e 'GATEWAY_UPSTREAM_ALLOWED_HOSTS=["*.svc.cluster.local"]' \
+            mcp-a2a-gateway:ci
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/readyz && break; sleep 1
+          done
+          curl -sf http://localhost:8080/.well-known/agent-card.json | grep -q '"url":"http://localhost:8080/a2a"'
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/mcp \
+            -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
+          test "$status" = "401"
+          docker inspect --format '{{.Config.User}}' mcp-a2a-gateway:ci | grep -q 10001
+          docker logs gateway
+      - name: Image vulnerability scan (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: mcp-a2a-gateway:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Image SBOM (Syft)
+        uses: anchore/sbom-action@v0.24.3
+        with:
+          image: mcp-a2a-gateway:ci
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+      - name: SBOM vulnerability gate (Grype)
+        uses: anchore/scan-action@v7.4.2
+        with:
+          sbom: sbom.cdx.json
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:1.95.0
+    steps:
+      - uses: actions/checkout@v4
+      - run: semgrep scan --config p/python --config p/secrets --config p/dockerfile --error --metrics=off src Dockerfile

@@ -1,0 +1,139 @@
+replicaCount: 3
+
+image:
+  repository: ghcr.io/kogunlowo123/mcp-a2a-gateway
+  tag: ""  # defaults to v<.Chart.AppVersion>, the tag the release workflow publishes
+  digest: ""  # set to pin an immutable sha256 digest; takes precedence over tag
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: mcp-a2a-gateway
+  # Cloud workload identity bindings from Terraform outputs, e.g.
+  #   eks.amazonaws.com/role-arn (AWS IRSA)
+  #   azure.workload.identity/client-id (Azure Workload ID)
+  #   iam.gke.io/gcp-service-account (GKE Workload Identity)
+  annotations: {}
+
+podLabels: {}
+
+# Deployment-specific values marked REQUIRED have no default; the chart refuses
+# to render until they are set (helm install --values <environment>.yaml).
+gateway:
+  environment: production
+  publicUrl: ""  # REQUIRED: public HTTPS base URL of this gateway
+  trustDomain: ""  # REQUIRED: trust domain of the agents this gateway serves
+  fabricUrl: ""  # REQUIRED: base URL of the agent identity fabric
+  agentId: ""  # REQUIRED: this gateway's SPIFFE ID as registered in the fabric
+  tokenAudience: agent-platform
+  admin:
+    issuer: ""  # REQUIRED: enterprise OIDC issuer
+    audience: ""  # REQUIRED: audience of administrator tokens
+    jwksUrl: ""  # REQUIRED: JWKS URL of the enterprise OIDC issuer
+    rolesClaim: roles
+  # REQUIRED: host globs upstream MCP servers may be registered on (egress allow list).
+  upstreamAllowedHosts: []
+  # Host header values accepted on /mcp (DNS rebinding protection); empty disables the check.
+  mcpAllowedHosts: []
+  # Federated trust domains: name -> TrustDomainConfig (see docs/operations/configuration.md).
+  trustDomains: {}
+  requireSignedCards: true
+  definitionTtlSeconds: 60
+  approvalTtlSeconds: 3600
+  maxArgumentBytes: 262144
+  a2aMaxResponseBytes: 1048576
+  a2aTimeoutSeconds: 60
+  rateLimitPerMinute: 600
+  circuitFailureThreshold: 5
+  circuitResetSeconds: 30
+  logLevel: INFO
+  otlpEndpoint: ""  # optional OTLP gRPC endpoint
+
+# Projected service-account token the gateway exchanges for its own fabric
+# credential (RFC 7523 jwt-bearer). The audience must match the gateway's
+# workload binding in the fabric.
+workloadToken:
+  audience: identity-fabric
+  expirationSeconds: 3600
+
+# Secrets are created by the platform secret operator (External Secrets,
+# Secrets Store CSI) from the cloud secret manager provisioned by Terraform.
+secrets:
+  # Secret holding key DATABASE_URL (postgresql+asyncpg://...).
+  database: mcp-a2a-gateway-database
+  # Secret holding audit-<kid>.pem, the Ed25519 audit signing key.
+  auditKey: mcp-a2a-gateway-audit-key
+  auditKeyFile: ""  # REQUIRED: file name of the audit key within secrets.auditKey
+  # Optional Secret whose keys are GATEWAY_UPSTREAM_SECRET_* credentials for
+  # upstream servers registered with auth mode static_bearer.
+  upstreamCredentials: ""
+
+# Hourly export of verified audit segments to WORM storage: export (gateway
+# image) -> upload (uploader image) -> commit (gateway image). The defaults
+# upload to the S3 Object Lock bucket from deployments/terraform/aws; on Azure
+# or GCP set uploader.image and uploader.command for azcopy or gcloud storage.
+auditExport:
+  enabled: false
+  schedule: "17 * * * *"
+  bucket: ""  # required when enabled: Terraform output audit_bucket
+  serviceAccount:
+    name: mcp-a2a-gateway-audit-export
+    annotations: {}  # e.g. eks.amazonaws.com/role-arn from output audit_export_role_arn
+  uploader:
+    image: amazon/aws-cli:2.37.10
+    command:
+      - /bin/sh
+      - -c
+      - aws s3 cp /export "s3://${AUDIT_BUCKET}/audit-segments/" --recursive --sse aws:kms
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""  # required when ingress.enabled
+  tlsSecret: mcp-a2a-gateway-tls
+  annotations: {}
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 65
+
+podDisruptionBudget:
+  minAvailable: 2
+
+networkPolicy:
+  enabled: true
+  # Namespaces whose agents may call the gateway.
+  allowedNamespaceLabels:
+    agent-platform/member: "true"
+  monitoringNamespaceLabels:
+    kubernetes.io/metadata.name: observability
+  ingressNamespaceLabels:
+    kubernetes.io/metadata.name: ingress-nginx
+  # Ports of upstream MCP servers and federated agents reachable from the gateway
+  # (the host allow list in the application is the finer-grained control).
+  upstreamPorts: [443, 8443]
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+
+nodeSelector: {}
+tolerations: []
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway

@@ -1,0 +1,99 @@
+# PrometheusRule-compatible alert rules. Load with the Prometheus Operator
+# (wrap in a PrometheusRule) or a rule_files entry.
+# SLOs (docs/architecture/agent-specification.md):
+#   availability  99.9% of MCP and A2A requests answered without a gateway 5xx
+#   latency       p95 gateway overhead on tools/call < 150 ms (excluding upstream time)
+groups:
+  - name: mcp-a2a-gateway.slo
+    rules:
+      - record: gateway:request_errors:ratio_5m
+        expr: |
+          sum(rate(gateway_http_request_duration_seconds_count{route=~"/mcp|/a2a",status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(gateway_http_request_duration_seconds_count{route=~"/mcp|/a2a"}[5m])), 1e-9)
+
+      - record: gateway:request_errors:ratio_1h
+        expr: |
+          sum(rate(gateway_http_request_duration_seconds_count{route=~"/mcp|/a2a",status=~"5.."}[1h]))
+          /
+          clamp_min(sum(rate(gateway_http_request_duration_seconds_count{route=~"/mcp|/a2a"}[1h])), 1e-9)
+
+      - alert: GatewayErrorBudgetBurnFast
+        expr: gateway:request_errors:ratio_5m > (14.4 * 0.001) and gateway:request_errors:ratio_1h > (14.4 * 0.001)
+        for: 2m
+        labels: {severity: page}
+        annotations:
+          summary: Gateway burning its 30-day error budget 14x faster than sustainable
+          runbook: docs/runbooks/incident-response.md#elevated-5xx
+
+      - alert: GatewayToolCallLatencyHigh
+        expr: |
+          histogram_quantile(0.95, sum by (le, server) (
+            rate(gateway_tool_call_duration_seconds_bucket[10m])
+          )) > 2
+        for: 15m
+        labels: {severity: ticket}
+        annotations:
+          summary: p95 end-to-end tool call latency above 2 s for {{ $labels.server }}
+          runbook: docs/runbooks/monitoring.md#latency
+
+  - name: mcp-a2a-gateway.security
+    rules:
+      - alert: GatewayToolDefinitionDrift
+        expr: sum by (server) (increase(gateway_definition_drift_total[15m])) > 0
+        labels: {severity: page}
+        annotations:
+          summary: Upstream {{ $labels.server }} changed a pinned tool definition (possible rug pull)
+          runbook: docs/runbooks/incident-response.md#definition-drift
+
+      - alert: GatewayOutputBlockedSpike
+        expr: sum by (upstream) (increase(gateway_output_blocked_total[15m])) > 5
+        labels: {severity: page}
+        annotations:
+          summary: Responses from {{ $labels.upstream }} repeatedly blocked by content inspection
+          runbook: docs/runbooks/incident-response.md#injected-content
+
+      - alert: GatewayAuthenticationFailures
+        expr: sum(rate(gateway_authentication_failures_total[10m])) > 0.5
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: Sustained rejected agent credentials; possible credential stuffing or replay
+          runbook: docs/runbooks/incident-response.md#authentication-failures
+
+      - alert: GatewayDenySpike
+        expr: |
+          sum(rate(gateway_authorization_decisions_total{decision="deny"}[10m]))
+          /
+          clamp_min(sum(rate(gateway_authorization_decisions_total[10m])), 1e-9) > 0.2
+        for: 15m
+        labels: {severity: ticket}
+        annotations:
+          summary: More than 20% of gateway authorization decisions are denials
+          runbook: docs/runbooks/incident-response.md#deny-spike
+
+  - name: mcp-a2a-gateway.dependencies
+    rules:
+      - alert: GatewayUpstreamFailing
+        expr: sum by (upstream) (rate(gateway_upstream_errors_total[5m])) > 0.2
+        for: 10m
+        labels: {severity: ticket}
+        annotations:
+          summary: Upstream {{ $labels.upstream }} failing; its circuit breaker is likely open
+          runbook: docs/runbooks/monitoring.md#upstream-failures
+
+      - alert: GatewayApprovalBacklog
+        expr: sum(increase(gateway_lifecycle_events_total{event=~"approval.approve|approval.deny"}[1h])) == 0 and sum(increase(gateway_tool_calls_total{outcome="approval_required"}[1h])) > 10
+        for: 30m
+        labels: {severity: ticket}
+        annotations:
+          summary: High-risk calls are waiting for approval and nobody is deciding
+          runbook: docs/runbooks/monitoring.md#approval-backlog
+
+      - alert: GatewayReplicasDown
+        expr: sum(up{job="mcp-a2a-gateway"}) < 2
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: Fewer than two gateway replicas are being scraped
+          runbook: docs/runbooks/incident-response.md#replicas-down

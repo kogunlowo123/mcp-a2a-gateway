@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "DataClassification": {
+      "description": "Sensitivity label. Ordered from least to most restricted.",
+      "enum": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "title": "DataClassification",
+      "type": "integer"
+    },
+    "RiskLevel": {
+      "description": "Action risk tier. Ordered so policies can compare with ``>=``.",
+      "enum": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "title": "RiskLevel",
+      "type": "integer"
+    },
+    "ToolPolicy": {
+      "additionalProperties": false,
+      "description": "Set by a reviewer when a tool version is approved.",
+      "properties": {
+        "allowed_agents": {
+          "description": "SPIFFE IDs (globs allowed) of agents that may call the tool",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Allowed Agents",
+          "type": "array"
+        },
+        "classification": {
+          "$ref": "#/$defs/DataClassification"
+        },
+        "max_response_bytes": {
+          "anyOf": [
+            {
+              "maximum": 16777216,
+              "minimum": 1024,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Response Bytes"
+        },
+        "redact_pii": {
+          "default": true,
+          "title": "Redact Pii",
+          "type": "boolean"
+        },
+        "requires_approval": {
+          "default": false,
+          "description": "Every call needs human approval regardless of risk",
+          "title": "Requires Approval",
+          "type": "boolean"
+        },
+        "risk": {
+          "$ref": "#/$defs/RiskLevel"
+        }
+      },
+      "required": [
+        "risk",
+        "classification",
+        "allowed_agents"
+      ],
+      "title": "ToolPolicy",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/approve-tool.request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "override_findings_reason": {
+      "anyOf": [
+        {
+          "maxLength": 1000,
+          "minLength": 20,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Required to approve a definition flagged for instruction-like text",
+      "title": "Override Findings Reason"
+    },
+    "policy": {
+      "$ref": "#/$defs/ToolPolicy"
+    },
+    "reason": {
+      "maxLength": 1000,
+      "minLength": 5,
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "policy",
+    "reason"
+  ],
+  "title": "ApproveTool",
+  "type": "object"
+}

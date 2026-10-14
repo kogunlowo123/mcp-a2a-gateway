@@ -1,0 +1,91 @@
+{
+  "$defs": {
+    "CardPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_callers": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Allowed Callers",
+          "type": "array"
+        },
+        "allowed_skills": {
+          "default": [],
+          "description": "Skill ids callers may target; empty allows every card skill",
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Skills",
+          "type": "array"
+        },
+        "classification": {
+          "$ref": "#/$defs/DataClassification"
+        },
+        "redact_pii": {
+          "default": true,
+          "title": "Redact Pii",
+          "type": "boolean"
+        },
+        "requires_approval": {
+          "default": false,
+          "title": "Requires Approval",
+          "type": "boolean"
+        },
+        "risk": {
+          "$ref": "#/$defs/RiskLevel"
+        }
+      },
+      "required": [
+        "risk",
+        "classification",
+        "allowed_callers"
+      ],
+      "title": "CardPolicy",
+      "type": "object"
+    },
+    "DataClassification": {
+      "description": "Sensitivity label. Ordered from least to most restricted.",
+      "enum": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "title": "DataClassification",
+      "type": "integer"
+    },
+    "RiskLevel": {
+      "description": "Action risk tier. Ordered so policies can compare with ``>=``.",
+      "enum": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "title": "RiskLevel",
+      "type": "integer"
+    }
+  },
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/approve-card.request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "policy": {
+      "$ref": "#/$defs/CardPolicy"
+    },
+    "reason": {
+      "maxLength": 1000,
+      "minLength": 5,
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "policy",
+    "reason"
+  ],
+  "title": "ApproveCard",
+  "type": "object"
+}

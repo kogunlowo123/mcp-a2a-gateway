@@ -1,0 +1,54 @@
+{
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/register-card.request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "card": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Inline card document",
+      "title": "Card"
+    },
+    "card_id": {
+      "pattern": "^[a-z][a-z0-9-]{1,47}$",
+      "title": "Card Id",
+      "type": "string"
+    },
+    "card_url": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Where to fetch the card, e.g. https://host/.well-known/agent-card.json",
+      "title": "Card Url"
+    },
+    "trust_domain": {
+      "maxLength": 253,
+      "minLength": 1,
+      "title": "Trust Domain",
+      "type": "string"
+    }
+  },
+  "required": [
+    "card_id",
+    "trust_domain"
+  ],
+  "title": "RegisterCard",
+  "type": "object"
+}

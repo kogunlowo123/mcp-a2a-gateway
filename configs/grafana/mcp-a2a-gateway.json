@@ -1,0 +1,67 @@
+{
+  "title": "MCP and A2A Gateway",
+  "uid": "mcp-a2a-gateway",
+  "schemaVersion": 39,
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "datasource", "type": "datasource", "query": "prometheus"}
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "MCP/A2A success (5m)",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 3}},
+      "targets": [{"expr": "1 - gateway:request_errors:ratio_5m"}]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Tool calls by outcome",
+      "gridPos": {"x": 6, "y": 0, "w": 9, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{"expr": "sum by (outcome) (rate(gateway_tool_calls_total[5m]))", "legendFormat": "{{outcome}}"}]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Authorization decisions",
+      "gridPos": {"x": 15, "y": 0, "w": 9, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{"expr": "sum by (protocol, decision) (rate(gateway_authorization_decisions_total[5m]))", "legendFormat": "{{protocol}} {{decision}}"}]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "p95 tool call latency by upstream",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, server) (rate(gateway_tool_call_duration_seconds_bucket[5m])))", "legendFormat": "{{server}}"}]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "A2A operations by outcome",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{"expr": "sum by (method, outcome) (rate(gateway_a2a_requests_total[5m]))", "legendFormat": "{{method}} {{outcome}}"}]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Security signals",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {"expr": "sum by (server) (increase(gateway_definition_drift_total[15m]))", "legendFormat": "drift {{server}}"},
+        {"expr": "sum by (upstream, reason) (increase(gateway_output_blocked_total[15m]))", "legendFormat": "blocked {{upstream}} {{reason}}"},
+        {"expr": "sum by (endpoint) (increase(gateway_authentication_failures_total[15m]))", "legendFormat": "authn failures {{endpoint}}"}
+      ]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Upstream errors",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{"expr": "sum by (upstream, error) (rate(gateway_upstream_errors_total[5m]))", "legendFormat": "{{upstream}} {{error}}"}]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Registry lifecycle events",
+      "gridPos": {"x": 0, "y": 24, "w": 24, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{"expr": "sum by (event) (increase(gateway_lifecycle_events_total[1h]))", "legendFormat": "{{event}}"}]
+    }
+  ]
+}

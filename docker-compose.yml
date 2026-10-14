@@ -1,0 +1,97 @@
+# Local development stack: gateway + the agent identity fabric it delegates to,
+# one PostgreSQL per service, an OIDC provider standing in for the workload
+# issuer and the enterprise admin IdP, and an OpenTelemetry collector.
+# Both services use in-memory signing keys (*_DEV_EPHEMERAL_KEYS); never use
+# this configuration outside a developer workstation.
+name: mcp-a2a-gateway
+
+services:
+  gateway-db:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: gateway
+      POSTGRES_USER: gateway
+      POSTGRES_PASSWORD: gateway-local-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway -d gateway"]
+      interval: 5s
+      retries: 10
+    volumes:
+      - gateway-data:/var/lib/postgresql/data
+
+  fabric-db:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: fabric
+      POSTGRES_USER: fabric
+      POSTGRES_PASSWORD: fabric-local-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fabric -d fabric"]
+      interval: 5s
+      retries: 10
+    volumes:
+      - fabric-data:/var/lib/postgresql/data
+
+  oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    environment:
+      SERVER_PORT: "8080"
+    ports:
+      - "8081:8080"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./deployments/docker/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+
+  fabric:
+    image: ghcr.io/kogunlowo123/agent-identity-fabric:v0.1.0
+    depends_on:
+      fabric-db:
+        condition: service_healthy
+      oidc:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    environment:
+      FABRIC_ENVIRONMENT: development
+      FABRIC_DEV_EPHEMERAL_KEYS: "true"
+      FABRIC_TRUST_DOMAIN: agents.local
+      FABRIC_ISSUER: http://fabric:8080
+      FABRIC_DATABASE_URL: postgresql+asyncpg://fabric:fabric-local-only@fabric-db:5432/fabric
+      FABRIC_WORKLOAD_ISSUERS: '{"http://oidc:8080/workload": "http://oidc:8080/workload/jwks"}'
+      FABRIC_ADMIN_ISSUER: http://oidc:8080/admin
+      FABRIC_ADMIN_AUDIENCE: identity-fabric-admin
+      FABRIC_ADMIN_JWKS_URL: http://oidc:8080/admin/jwks
+      FABRIC_AUDIT_LOG_PATH: /tmp/fabric-audit.jsonl
+      FABRIC_OTLP_ENDPOINT: http://otel-collector:4317
+
+  gateway:
+    build: .
+    depends_on:
+      gateway-db:
+        condition: service_healthy
+      fabric:
+        condition: service_started
+    ports:
+      - "8090:8080"
+    environment:
+      GATEWAY_ENVIRONMENT: development
+      GATEWAY_DEV_EPHEMERAL_KEYS: "true"
+      GATEWAY_PUBLIC_URL: http://localhost:8090
+      GATEWAY_TRUST_DOMAIN: agents.local
+      GATEWAY_DATABASE_URL: postgresql+asyncpg://gateway:gateway-local-only@gateway-db:5432/gateway
+      GATEWAY_FABRIC_URL: http://fabric:8080
+      GATEWAY_ADMIN_ISSUER: http://oidc:8080/admin
+      GATEWAY_ADMIN_AUDIENCE: mcp-a2a-gateway-admin
+      GATEWAY_ADMIN_JWKS_URL: http://oidc:8080/admin/jwks
+      GATEWAY_UPSTREAM_ALLOWED_HOSTS: '["host.docker.internal", "*.local"]'
+      GATEWAY_ALLOW_INSECURE_UPSTREAMS: "true"
+      GATEWAY_AUDIT_CHAIN_ID: gateway-local
+      GATEWAY_OTLP_ENDPOINT: http://otel-collector:4317
+      GATEWAY_LOG_LEVEL: DEBUG
+
+volumes:
+  gateway-data:
+  fabric-data:

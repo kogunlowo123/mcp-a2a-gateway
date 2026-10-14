@@ -1,0 +1,281 @@
+{
+  "$defs": {
+    "DataClassification": {
+      "description": "Sensitivity label. Ordered from least to most restricted.",
+      "enum": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "title": "DataClassification",
+      "type": "integer"
+    },
+    "Lifecycle": {
+      "enum": [
+        "draft",
+        "approved",
+        "deprecated",
+        "revoked"
+      ],
+      "title": "Lifecycle",
+      "type": "string"
+    },
+    "RiskLevel": {
+      "description": "Action risk tier. Ordered so policies can compare with ``>=``.",
+      "enum": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "title": "RiskLevel",
+      "type": "integer"
+    },
+    "ToolDefinition": {
+      "description": "The parts of an MCP tool definition that are pinned and hashed.",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Annotations"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "input_schema": {
+          "additionalProperties": true,
+          "title": "Input Schema",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "output_schema": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Schema"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        }
+      },
+      "required": [
+        "name",
+        "input_schema"
+      ],
+      "title": "ToolDefinition",
+      "type": "object"
+    },
+    "ToolPolicy": {
+      "additionalProperties": false,
+      "description": "Set by a reviewer when a tool version is approved.",
+      "properties": {
+        "allowed_agents": {
+          "description": "SPIFFE IDs (globs allowed) of agents that may call the tool",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Allowed Agents",
+          "type": "array"
+        },
+        "classification": {
+          "$ref": "#/$defs/DataClassification"
+        },
+        "max_response_bytes": {
+          "anyOf": [
+            {
+              "maximum": 16777216,
+              "minimum": 1024,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Response Bytes"
+        },
+        "redact_pii": {
+          "default": true,
+          "title": "Redact Pii",
+          "type": "boolean"
+        },
+        "requires_approval": {
+          "default": false,
+          "description": "Every call needs human approval regardless of risk",
+          "title": "Requires Approval",
+          "type": "boolean"
+        },
+        "risk": {
+          "$ref": "#/$defs/RiskLevel"
+        }
+      },
+      "required": [
+        "risk",
+        "classification",
+        "allowed_agents"
+      ],
+      "title": "ToolPolicy",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/tool-version.response.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "approved_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approved At"
+    },
+    "approved_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approved By"
+    },
+    "definition": {
+      "$ref": "#/$defs/ToolDefinition"
+    },
+    "definition_hash": {
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "discovered_at": {
+      "format": "date-time",
+      "title": "Discovered At",
+      "type": "string"
+    },
+    "discovered_by": {
+      "title": "Discovered By",
+      "type": "string"
+    },
+    "injection_kinds": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Injection Kinds",
+      "type": "array"
+    },
+    "injection_score": {
+      "default": 0.0,
+      "description": "Prompt-injection score of the description and schema text",
+      "title": "Injection Score",
+      "type": "number"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "policy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ToolPolicy"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "server_id": {
+      "title": "Server Id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/Lifecycle",
+      "default": "draft"
+    },
+    "status_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Status Reason"
+    },
+    "sunset_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sunset At"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "server_id",
+    "name",
+    "version",
+    "definition",
+    "definition_hash",
+    "discovered_by",
+    "discovered_at",
+    "updated_at"
+  ],
+  "title": "ToolVersion",
+  "type": "object"
+}

@@ -1,0 +1,36 @@
+{{- $g := .Values.gateway -}}
+{{- if not $g.upstreamAllowedHosts }}{{ fail "gateway.upstreamAllowedHosts is required" }}{{ end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gateway.fullname" . }}
+  labels: {{- include "gateway.labels" . | nindent 4 }}
+data:
+  GATEWAY_ENVIRONMENT: {{ $g.environment | quote }}
+  GATEWAY_PUBLIC_URL: {{ required "gateway.publicUrl is required" $g.publicUrl | quote }}
+  GATEWAY_TRUST_DOMAIN: {{ required "gateway.trustDomain is required" $g.trustDomain | quote }}
+  GATEWAY_FABRIC_URL: {{ required "gateway.fabricUrl is required" $g.fabricUrl | quote }}
+  GATEWAY_GATEWAY_AGENT_ID: {{ required "gateway.agentId is required" $g.agentId | quote }}
+  GATEWAY_WORKLOAD_TOKEN_FILE: /var/run/secrets/tokens/identity-fabric
+  GATEWAY_TOKEN_AUDIENCE: {{ $g.tokenAudience | quote }}
+  GATEWAY_ADMIN_ISSUER: {{ required "gateway.admin.issuer is required" $g.admin.issuer | quote }}
+  GATEWAY_ADMIN_AUDIENCE: {{ required "gateway.admin.audience is required" $g.admin.audience | quote }}
+  GATEWAY_ADMIN_JWKS_URL: {{ required "gateway.admin.jwksUrl is required" $g.admin.jwksUrl | quote }}
+  GATEWAY_ADMIN_ROLES_CLAIM: {{ $g.admin.rolesClaim | quote }}
+  GATEWAY_AUDIT_KEY_FILE: {{ printf "/etc/mcp-a2a-gateway/audit-key/%s" (required "secrets.auditKeyFile is required" .Values.secrets.auditKeyFile) | quote }}
+  GATEWAY_UPSTREAM_ALLOWED_HOSTS: {{ $g.upstreamAllowedHosts | toJson | quote }}
+  GATEWAY_MCP_ALLOWED_HOSTS: {{ $g.mcpAllowedHosts | toJson | quote }}
+  GATEWAY_TRUST_DOMAINS: {{ $g.trustDomains | toJson | quote }}
+  GATEWAY_REQUIRE_SIGNED_CARDS: {{ $g.requireSignedCards | quote }}
+  GATEWAY_DEFINITION_TTL_SECONDS: {{ $g.definitionTtlSeconds | int | quote }}
+  GATEWAY_APPROVAL_TTL_SECONDS: {{ $g.approvalTtlSeconds | int | quote }}
+  GATEWAY_MAX_ARGUMENT_BYTES: {{ $g.maxArgumentBytes | int | quote }}
+  GATEWAY_A2A_MAX_RESPONSE_BYTES: {{ $g.a2aMaxResponseBytes | int | quote }}
+  GATEWAY_A2A_TIMEOUT_SECONDS: {{ $g.a2aTimeoutSeconds | int | quote }}
+  GATEWAY_RATE_LIMIT_PER_MINUTE: {{ $g.rateLimitPerMinute | int | quote }}
+  GATEWAY_CIRCUIT_FAILURE_THRESHOLD: {{ $g.circuitFailureThreshold | int | quote }}
+  GATEWAY_CIRCUIT_RESET_SECONDS: {{ $g.circuitResetSeconds | int | quote }}
+  GATEWAY_LOG_LEVEL: {{ $g.logLevel | quote }}
+  {{- with $g.otlpEndpoint }}
+  GATEWAY_OTLP_ENDPOINT: {{ . | quote }}
+  {{- end }}

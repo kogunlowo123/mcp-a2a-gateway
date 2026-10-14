@@ -1,0 +1,132 @@
+{{- if .Values.auditExport.enabled }}
+{{- $bucket := required "auditExport.bucket is required when auditExport.enabled" .Values.auditExport.bucket }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.auditExport.serviceAccount.name }}
+  labels: {{- include "gateway.labels" . | nindent 4 }}
+  {{- with .Values.auditExport.serviceAccount.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: false
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "gateway.fullname" . }}-audit-export
+  labels: {{- include "gateway.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "gateway.name" . }}-audit-export
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress, Egress]
+  egress:
+    - ports:  # DNS
+        - {port: 53, protocol: UDP}
+        - {port: 53, protocol: TCP}
+    - ports:  # PostgreSQL, object storage and cloud token endpoints
+        - {port: 5432, protocol: TCP}
+        - {port: 443, protocol: TCP}
+{{- end }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "gateway.fullname" . }}-audit-export
+  labels: {{- include "gateway.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.auditExport.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: {{ include "gateway.name" . }}-audit-export
+            app.kubernetes.io/instance: {{ .Release.Name }}
+        spec:
+          serviceAccountName: {{ .Values.auditExport.serviceAccount.name }}
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: export
+              image: {{ include "gateway.image" . }}
+              args: ["-m", "mcp_a2a_gateway.audit_export", "export", "--out", "/export"]
+              command: ["python"]
+              envFrom:
+                - configMapRef:
+                    name: {{ include "gateway.fullname" . }}
+              env: &gatewayEnv
+                - name: GATEWAY_DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.secrets.database }}
+                      key: DATABASE_URL
+              securityContext: &restricted
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources: &jobResources
+                requests: {cpu: 100m, memory: 256Mi}
+                limits: {cpu: 500m, memory: 512Mi}
+              volumeMounts: &gatewayMounts
+                - name: export
+                  mountPath: /export
+                - name: audit-key
+                  mountPath: /etc/mcp-a2a-gateway/audit-key
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+            - name: upload
+              image: {{ .Values.auditExport.uploader.image }}
+              command: {{- toYaml .Values.auditExport.uploader.command | nindent 16 }}
+              env:
+                - name: AUDIT_BUCKET
+                  value: {{ $bucket | quote }}
+                - name: HOME
+                  value: /tmp
+              securityContext: *restricted
+              resources: *jobResources
+              volumeMounts:
+                - name: export
+                  mountPath: /export
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: commit
+              image: {{ include "gateway.image" . }}
+              command: ["python"]
+              args: ["-m", "mcp_a2a_gateway.audit_export", "commit", "--out", "/export"]
+              envFrom:
+                - configMapRef:
+                    name: {{ include "gateway.fullname" . }}
+              env: *gatewayEnv
+              securityContext: *restricted
+              resources: *jobResources
+              volumeMounts: *gatewayMounts
+          volumes:
+            - name: export
+              emptyDir:
+                sizeLimit: 1Gi
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi
+            - name: audit-key
+              secret:
+                secretName: {{ .Values.secrets.auditKey }}
+                defaultMode: 0400
+{{- end }}

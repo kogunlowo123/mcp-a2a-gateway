@@ -1,0 +1,101 @@
+{
+  "$defs": {
+    "UpstreamAuth": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/UpstreamAuthMode",
+          "default": "delegated"
+        },
+        "secret_env": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Environment variable holding the bearer token (static_bearer only); must start with GATEWAY_UPSTREAM_SECRET_",
+          "title": "Secret Env"
+        }
+      },
+      "title": "UpstreamAuth",
+      "type": "object"
+    },
+    "UpstreamAuthMode": {
+      "enum": [
+        "none",
+        "static_bearer",
+        "delegated"
+      ],
+      "title": "UpstreamAuthMode",
+      "type": "string"
+    }
+  },
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/register-server.request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "auth": {
+      "$ref": "#/$defs/UpstreamAuth",
+      "default": {
+        "mode": "delegated",
+        "secret_env": null
+      }
+    },
+    "description": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Description",
+      "type": "string"
+    },
+    "display_name": {
+      "maxLength": 120,
+      "minLength": 3,
+      "title": "Display Name",
+      "type": "string"
+    },
+    "max_response_bytes": {
+      "default": 1048576,
+      "maximum": 16777216,
+      "minimum": 1024,
+      "title": "Max Response Bytes",
+      "type": "integer"
+    },
+    "owner": {
+      "maxLength": 120,
+      "minLength": 3,
+      "title": "Owner",
+      "type": "string"
+    },
+    "server_id": {
+      "pattern": "^[a-z][a-z0-9-]{1,23}$",
+      "title": "Server Id",
+      "type": "string"
+    },
+    "timeout_seconds": {
+      "default": 30.0,
+      "exclusiveMinimum": 0,
+      "maximum": 120,
+      "title": "Timeout Seconds",
+      "type": "number"
+    },
+    "url": {
+      "format": "uri",
+      "maxLength": 2083,
+      "minLength": 1,
+      "title": "Url",
+      "type": "string"
+    }
+  },
+  "required": [
+    "server_id",
+    "display_name",
+    "url",
+    "owner"
+  ],
+  "title": "RegisterServer",
+  "type": "object"
+}

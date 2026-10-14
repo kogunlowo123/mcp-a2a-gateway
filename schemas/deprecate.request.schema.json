@@ -1,0 +1,24 @@
+{
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/deprecate.request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "reason": {
+      "maxLength": 1000,
+      "minLength": 5,
+      "title": "Reason",
+      "type": "string"
+    },
+    "sunset_at": {
+      "format": "date-time",
+      "title": "Sunset At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sunset_at",
+    "reason"
+  ],
+  "title": "DeprecateTool",
+  "type": "object"
+}

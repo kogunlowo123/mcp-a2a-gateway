@@ -1,0 +1,267 @@
+{
+  "$defs": {
+    "AgentCapabilities": {
+      "additionalProperties": true,
+      "properties": {
+        "pushNotifications": {
+          "default": false,
+          "title": "Pushnotifications",
+          "type": "boolean"
+        },
+        "stateTransitionHistory": {
+          "default": false,
+          "title": "Statetransitionhistory",
+          "type": "boolean"
+        },
+        "streaming": {
+          "default": false,
+          "title": "Streaming",
+          "type": "boolean"
+        }
+      },
+      "title": "AgentCapabilities",
+      "type": "object"
+    },
+    "AgentCardSignature": {
+      "additionalProperties": false,
+      "description": "JWS over the canonical card (A2A ``AgentCardSignature``).",
+      "properties": {
+        "header": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Header"
+        },
+        "protected": {
+          "description": "base64url JWS protected header",
+          "minLength": 4,
+          "title": "Protected",
+          "type": "string"
+        },
+        "signature": {
+          "description": "base64url signature",
+          "minLength": 4,
+          "title": "Signature",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protected",
+        "signature"
+      ],
+      "title": "AgentCardSignature",
+      "type": "object"
+    },
+    "AgentSkill": {
+      "additionalProperties": true,
+      "properties": {
+        "description": {
+          "default": "",
+          "maxLength": 4000,
+          "title": "Description",
+          "type": "string"
+        },
+        "examples": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Examples",
+          "type": "array"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "inputModes": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inputmodes"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "outputModes": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outputmodes"
+        },
+        "tags": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "AgentSkill",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/a2a-agent-card.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "A2A Agent Card. Unknown fields are preserved so signatures stay verifiable.",
+  "properties": {
+    "capabilities": {
+      "$ref": "#/$defs/AgentCapabilities",
+      "default": {
+        "pushNotifications": false,
+        "stateTransitionHistory": false,
+        "streaming": false
+      }
+    },
+    "defaultInputModes": {
+      "default": [
+        "text/plain"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Defaultinputmodes",
+      "type": "array"
+    },
+    "defaultOutputModes": {
+      "default": [
+        "text/plain"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Defaultoutputmodes",
+      "type": "array"
+    },
+    "description": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Description",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "preferredTransport": {
+      "default": "JSONRPC",
+      "title": "Preferredtransport",
+      "type": "string"
+    },
+    "protocolVersion": {
+      "default": "0.3.0",
+      "title": "Protocolversion",
+      "type": "string"
+    },
+    "security": {
+      "anyOf": [
+        {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Security"
+    },
+    "securitySchemes": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Securityschemes"
+    },
+    "signatures": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/AgentCardSignature"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Signatures"
+    },
+    "skills": {
+      "items": {
+        "$ref": "#/$defs/AgentSkill"
+      },
+      "minItems": 1,
+      "title": "Skills",
+      "type": "array"
+    },
+    "url": {
+      "format": "uri",
+      "maxLength": 2083,
+      "minLength": 1,
+      "title": "Url",
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "url",
+    "version",
+    "skills"
+  ],
+  "title": "AgentCard",
+  "type": "object"
+}

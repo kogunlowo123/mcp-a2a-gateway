@@ -1,0 +1,45 @@
+{
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/a2a-jsonrpc.request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "JSON-RPC 2.0 request envelope accepted at POST /a2a.",
+  "properties": {
+    "id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Id"
+    },
+    "jsonrpc": {
+      "pattern": "^2\\.0$",
+      "title": "Jsonrpc",
+      "type": "string"
+    },
+    "method": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Method",
+      "type": "string"
+    },
+    "params": {
+      "additionalProperties": true,
+      "title": "Params",
+      "type": "object"
+    }
+  },
+  "required": [
+    "jsonrpc",
+    "method"
+  ],
+  "title": "JsonRpcRequest",
+  "type": "object"
+}

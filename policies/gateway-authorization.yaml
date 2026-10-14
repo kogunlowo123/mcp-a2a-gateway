@@ -1,0 +1,112 @@
+# Gateway authorization policy (agentic-core PolicyEngine), evaluated for every
+# MCP tools/call and every A2A message/task operation. For callers authenticated
+# by the identity fabric, the fabric's /v1/authorize decision is combined with
+# this one and the most restrictive outcome wins.
+#
+# Combining: deny overrides, then require_approval, then allow; default deny.
+#
+# subject.*      scopes, action_in_scope, delegated, delegation_depth, federated,
+#                trust_domain
+# resource.*     type (mcp_tool | a2a_agent), id, classification, lifecycle,
+#                version, allow_listed, past_sunset, destructive,
+#                requires_approval, within_caller_ceiling,
+#                delegation_within_limit, server (mcp), trust_domain/skill (a2a)
+# environment.*  approval_granted (a valid, unused human approval was presented),
+#                purpose_of_use (caller-declared)
+# risk           1=LOW 2=MODERATE 3=HIGH 4=CRITICAL
+# classification 0=PUBLIC 1=INTERNAL 2=CONFIDENTIAL 3=RESTRICTED
+name: gateway-authorization
+version: "2026.10.0"
+rules:
+  - id: deny-not-allow-listed
+    description: The caller is not on the tool's or agent's approved caller list.
+    effect: deny
+    actions: ["*"]
+    conditions:
+      - {attribute: resource.allow_listed, operator: eq, value: false}
+
+  - id: deny-not-servable
+    description: Only approved or deprecated versions can be reached.
+    effect: deny
+    actions: ["*"]
+    conditions:
+      - {attribute: resource.lifecycle, operator: not_in, value: [approved, deprecated]}
+
+  - id: deny-past-sunset
+    description: Deprecated versions stop working at their sunset time.
+    effect: deny
+    actions: ["*"]
+    conditions:
+      - {attribute: resource.past_sunset, operator: eq, value: true}
+
+  - id: deny-above-caller-ceiling
+    description: Federated callers never reach data above their trust domain's ceiling.
+    effect: deny
+    actions: ["*"]
+    conditions:
+      - {attribute: resource.within_caller_ceiling, operator: eq, value: false}
+
+  - id: deny-delegation-beyond-domain-limit
+    description: The hop would exceed the target trust domain's delegation depth.
+    effect: deny
+    actions: ["a2a:*"]
+    conditions:
+      - {attribute: resource.delegation_within_limit, operator: eq, value: false}
+
+  - id: deny-deep-delegation-on-destructive-tools
+    description: Destructive tools are reachable through at most one delegation hop.
+    effect: deny
+    actions: ["mcp:*"]
+    conditions:
+      - {attribute: resource.destructive, operator: eq, value: true}
+      - {attribute: subject.delegation_depth, operator: gt, value: 1}
+
+  - id: deny-restricted-without-purpose
+    description: Restricted data requires a declared purpose of use.
+    effect: deny
+    actions: ["*"]
+    conditions:
+      - {attribute: resource.classification, operator: gte, value: 3}
+      - {attribute: environment.purpose_of_use, operator: exists, value: false}
+
+  - id: approve-flagged-targets
+    description: The reviewer marked this tool or agent as approval-per-call.
+    effect: require_approval
+    actions: ["*"]
+    conditions:
+      - {attribute: resource.requires_approval, operator: eq, value: true}
+      - {attribute: environment.approval_granted, operator: ne, value: true}
+
+  - id: approve-high-risk
+    description: High and critical risk targets need a human decision for each call.
+    effect: require_approval
+    actions: ["*"]
+    conditions:
+      - {attribute: risk, operator: gte, value: 3}
+      - {attribute: environment.approval_granted, operator: ne, value: true}
+
+  - id: approve-delegated-destructive
+    description: A destructive tool invoked under delegation needs a human decision.
+    effect: require_approval
+    actions: ["mcp:*"]
+    conditions:
+      - {attribute: resource.destructive, operator: eq, value: true}
+      - {attribute: subject.delegated, operator: eq, value: true}
+      - {attribute: environment.approval_granted, operator: ne, value: true}
+
+  - id: approve-federated-destructive
+    description: A caller from another trust domain invoking a destructive tool needs approval.
+    effect: require_approval
+    actions: ["mcp:*"]
+    conditions:
+      - {attribute: resource.destructive, operator: eq, value: true}
+      - {attribute: subject.federated, operator: eq, value: true}
+      - {attribute: environment.approval_granted, operator: ne, value: true}
+
+  - id: allow-scoped-servable
+    description: Allowed when the credential carries a scope covering the action.
+    effect: allow
+    actions: ["mcp:*", "a2a:*"]
+    conditions:
+      - {attribute: subject.action_in_scope, operator: eq, value: true}
+      - {attribute: resource.lifecycle, operator: in, value: [approved, deprecated]}

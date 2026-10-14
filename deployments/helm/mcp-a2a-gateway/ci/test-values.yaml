@@ -1,0 +1,36 @@
+# Values used by CI to render and schema-validate the chart (helm lint,
+# helm template | kubeconform). They describe a complete, valid deployment.
+gateway:
+  publicUrl: https://gateway.agents.ci.internal
+  trustDomain: agents.ci.internal
+  fabricUrl: https://identity.agents.ci.internal
+  agentId: spiffe://agents.ci.internal/agent/platform/mcp-a2a-gateway
+  admin:
+    issuer: https://login.ci.internal
+    audience: mcp-a2a-gateway
+    jwksUrl: https://login.ci.internal/jwks
+  upstreamAllowedHosts:
+    - "*.mcp.svc.cluster.local"
+  mcpAllowedHosts:
+    - gateway.agents.ci.internal
+  trustDomains:
+    agents.partner.ci.internal:
+      card_jwks_url: https://keys.partner.ci.internal/agent-cards.json
+      card_hosts: ["*.partner.ci.internal"]
+      max_classification: 1
+      max_delegation_depth: 2
+secrets:
+  auditKeyFile: audit-2026-10.pem
+  upstreamCredentials: mcp-a2a-gateway-upstream-credentials
+ingress:
+  enabled: true
+  className: nginx
+  host: gateway.agents.ci.internal
+serviceMonitor:
+  enabled: true
+auditExport:
+  enabled: true
+  bucket: mcp-a2a-gateway-audit-ci
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/mcp-a2a-gateway-audit-export

@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "Lifecycle": {
+      "enum": [
+        "draft",
+        "approved",
+        "deprecated",
+        "revoked"
+      ],
+      "title": "Lifecycle",
+      "type": "string"
+    },
+    "ToolChange": {
+      "properties": {
+        "change": {
+          "enum": [
+            "new",
+            "changed",
+            "unchanged",
+            "removed",
+            "rejected"
+          ],
+          "title": "Change",
+          "type": "string"
+        },
+        "definition_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Definition Hash"
+        },
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Lifecycle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name",
+        "change"
+      ],
+      "title": "ToolChange",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/discovery-report.response.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "changes": {
+      "items": {
+        "$ref": "#/$defs/ToolChange"
+      },
+      "title": "Changes",
+      "type": "array"
+    },
+    "discovered_at": {
+      "format": "date-time",
+      "title": "Discovered At",
+      "type": "string"
+    },
+    "server_id": {
+      "title": "Server Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "server_id",
+    "discovered_at",
+    "changes"
+  ],
+  "title": "DiscoveryReport",
+  "type": "object"
+}

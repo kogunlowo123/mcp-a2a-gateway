@@ -1,0 +1,149 @@
+{
+  "$defs": {
+    "ApprovalKind": {
+      "enum": [
+        "tool_call",
+        "a2a_message"
+      ],
+      "title": "ApprovalKind",
+      "type": "string"
+    },
+    "ApprovalStatus": {
+      "enum": [
+        "pending",
+        "approved",
+        "denied",
+        "used"
+      ],
+      "title": "ApprovalStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/approval.response.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A pending high-risk call, bound to the exact caller, target and payload digest.",
+  "properties": {
+    "action": {
+      "title": "Action",
+      "type": "string"
+    },
+    "approval_id": {
+      "title": "Approval Id",
+      "type": "string"
+    },
+    "decided_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decided At"
+    },
+    "decided_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decided By"
+    },
+    "decision_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decision Reason"
+    },
+    "delegation_chain": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Delegation Chain",
+      "type": "array"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/ApprovalKind"
+    },
+    "payload_digest": {
+      "title": "Payload Digest",
+      "type": "string"
+    },
+    "payload_preview": {
+      "description": "Redacted, truncated payload shown to the approver",
+      "title": "Payload Preview",
+      "type": "string"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "requested_at": {
+      "format": "date-time",
+      "title": "Requested At",
+      "type": "string"
+    },
+    "requester": {
+      "title": "Requester",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ApprovalStatus",
+      "default": "pending"
+    },
+    "target": {
+      "description": "exposed tool name or agent card id",
+      "title": "Target",
+      "type": "string"
+    },
+    "used_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Used At"
+    }
+  },
+  "required": [
+    "approval_id",
+    "kind",
+    "requester",
+    "target",
+    "action",
+    "payload_digest",
+    "payload_preview",
+    "reasons",
+    "requested_at",
+    "expires_at"
+  ],
+  "title": "ApprovalRequest",
+  "type": "object"
+}

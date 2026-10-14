@@ -1,0 +1,50 @@
+variable "name" {
+  description = "Resource name prefix"
+  type        = string
+  default     = "mcp-a2a-gateway"
+}
+
+variable "project_id" {
+  description = "GCP project"
+  type        = string
+}
+
+variable "region" {
+  description = "GCP region"
+  type        = string
+}
+
+variable "network_id" {
+  description = "VPC network self link with private services access configured"
+  type        = string
+}
+
+variable "db_tier" {
+  description = "Cloud SQL machine tier"
+  type        = string
+  default     = "db-custom-4-16384"
+}
+
+variable "namespace" {
+  description = "Kubernetes namespace of the gateway"
+  type        = string
+  default     = "mcp-gateway"
+}
+
+variable "service_account" {
+  description = "Kubernetes service account of the audit export job (WORM archival)"
+  type        = string
+  default     = "mcp-a2a-gateway-audit-export"
+}
+
+variable "audit_retention_days" {
+  description = "Bucket retention for audit chains"
+  type        = number
+  default     = 2555
+}
+
+variable "lock_audit_retention" {
+  description = "Permanently lock the retention policy (irreversible)"
+  type        = bool
+  default     = false
+}

@@ -1,0 +1,18 @@
+{
+  "$id": "https://github.com/kogunlowo123/mcp-a2a-gateway/schemas/decide-approval.request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "reason": {
+      "maxLength": 1000,
+      "minLength": 5,
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "reason"
+  ],
+  "title": "DecideApproval",
+  "type": "object"
+}
